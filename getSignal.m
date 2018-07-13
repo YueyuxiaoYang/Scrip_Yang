@@ -20,9 +20,9 @@
 % PolyPosition
 
 % default PolyPosition = 0, FreqEchS = 1 , DureeSimu = 1276 ,NSondeFluo = 128,NSondeParIntensite=20
-% FreqEch = FreqEchSimu , DureeSimu = DureeAnalysee,NSondeFluo = NbrSondeFluo,NSondeParIntensite=NombreSondeParIntensite
-function [signal]=getSignal(PolyPosition, Parameters) 
-    [FreqEchS, FreqEchImg, DureeSimu, NSondeFluo, NSondeParIntensite,...
+% FreqEch = FreqEchSimu ,NSondeFluo = NbrSondeFluo,NSondeParIntensite=NombreSondeParIntensite
+function [n_signal]=getSignal(PolyPosition, Parameters) 
+    [FreqEchS, FreqEchImg, DureeAnalysee, NSondeFluo, NSondeParIntensite,...
         TaillePreMarq,TailleSeqMarq, TaillePostMarq, VitessePolymerase,frame_num] = deal(Parameters{:});
     Intensity_for_1_Polym = NSondeFluo/NSondeParIntensite;
     T1 = round((TaillePreMarq/VitessePolymerase)*FreqEchS);
@@ -33,12 +33,19 @@ function [signal]=getSignal(PolyPosition, Parameters)
     second = Intensity_for_1_Polym/T2:Intensity_for_1_Polym/T2:Intensity_for_1_Polym;
     third = repmat(Intensity_for_1_Polym,1,T3);
     fourth = [first second third];  % the assembled signal
+    len_1_sig = T1+T2+T3; % how many "interval" for 1 signal
     fifth = [];
-    if(length(fourth)<frame_num*round(FreqEchS/FreqEchImg))
-        fifth = zeros(1,round(frame_num*round(FreqEchS/FreqEchImg)-length(fourth)));  % the assembled signal is smaller than the desired simulation duration add some 0 to the end
+    if(length(fourth)<len_1_sig+round(frame_num*(FreqEchS/FreqEchImg))+1)
+        fifth = zeros(1,round(frame_num*(FreqEchS/FreqEchImg))+1);  % the assembled signal is smaller than the desired simulation duration add some 0 to the end
     end 
     sixth = [fourth fifth];
-    sixth = sixth(1:frame_num*round(FreqEchS/FreqEchImg));  % In all cases keep only the signal of the simulated duration length
-    signal = sixth(1:round(FreqEchS/FreqEchImg):frame_num*round(FreqEchS/FreqEchImg));  % return only the values corresponding to the experimental value times points
-    
+%     sixth = sixth(1:round(frame_num*FreqEchS/FreqEchImg));  % In all cases keep only the signal of the simulated duration length
+%     signal = sixth(len_1_sig:round(FreqEchS/FreqEchImg):len_1_sig+frame_num*round(FreqEchS/FreqEchImg));  % return only the values corresponding to the experimental value times points
+    ii=1;
+    n_signal = zeros(1,frame_num);
+    while ii <= frame_num
+        index = round((ii-1)*(FreqEchS/FreqEchImg)+len_1_sig); % image start at len_1_sig, because 
+        n_signal(ii) = sixth(index);   
+        ii= ii+1;
+    end
 end

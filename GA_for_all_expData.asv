@@ -134,25 +134,60 @@ plot(signal_exp(4,:),'red')
 sum((simu_signal_noise-exp_data{4}).^2)
 sum((signal_simu(4,:)-exp_data{4}).^2)
 
+
+
+%% GA again to estimate artificial data (different amplitude)
+% try decovolute artificial data for different amplitude value
 % -----create artificial data and add noise---------
-Nbr_poly = 90;
+Nbr_poly = 150;
 Pattern_poly_art = zeros(1,num_possible_poly);
 Pattern_poly_art(randi(num_possible_poly,1,Nbr_poly)) = 1; % randomly choose 25 poly position (test1)
+Pattern_poly_art_diff_amp = Pattern_poly_art; % to store artificial poly position for different amp
 Trans_positions_art = find(Pattern_poly_art==1);
 sum_signal_art = sumSignal(Trans_positions_art,Parameters);
 % add noise
 var_sig = polyval(p,sum_signal_art);
-% amplitude_list = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8, 0.9,1]; % control amplitude of noise
-amplitude_list = [0];
+amplitude_list = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8, 0.9,1]; % control amplitude of noise
+% amplitude_list = [0];
 % try artificial data for 5 different amplitude value
-art_signal_noise = zeros(length(amplitude_list),length(sum_signal_art));
+art_signal_noise = zeros(length(amplitude_list),length(sum_signal_art)); % to store different amplitude signal
 for ii = 1:length(amplitude_list)
     art_signal_noise(ii,:) = sum_signal_art + mean_sig + (amplitude_list(ii)*2*(rand(1,length(sum_signal_art))-0.5)).*var_sig;
 end
 
+Pattern_poly_simu_diff_amp = zeros(10,num_possible_poly); % store simulation poly position 
+art_signal_noise_diff_amp = art_signal_noise; %  % to store different amplitude signal
+Pattern_poly_simu_diff_amp_rep = {};
+for ii = 1:length(amplitude_list)
+    
+    % prepare initial population 
+    Nbr_simu_DNA = 500; % number of "chromosome" in GA
+    Nbr_poly_estimate = 140; % different for every data£¬guess polyNbr
+    Pattern_polys = zeros(Nbr_simu_DNA,num_possible_poly);
+    for i = 1:Nbr_simu_DNA
+        Pattern_polys(i,randperm(num_possible_poly,Nbr_poly_estimate)) = 1; % randomly choose poly position 
+    %     Trans_positions_art = find(Pattern_poly_art(i,:)==1);
+    end
+
+    % ----------GA----------------
+    GA_fitness_art_noise = @(x) sum((sumSignal(find(x==1),Parameters)-art_signal_noise(ii,:)).^2);
+%     GA_fitness_art = @(x) sum((sumSignal(find(x==1),Parameters)-sum_signal_art).^2);
+    options = gaoptimset;
+    options = gaoptimset(options,'PopulationType', 'bitstring', 'CreationFcn',@gacreationuniform,'MutationFcn',@mutationuniform,...
+        'Display','iter','TolFun',1e-8,'Paretofraction',0.35,'Generations',300);
+
+    options = gaoptimset(options,'PopulationSize', Nbr_simu_DNA);
+    options = gaoptimset(options,'InitialPopulation', Pattern_polys);
+    % x_GA = ga(GA_fitness_art,length(Pattern_poly_art),[],[],[],[],[],[],[],[],options);
+    x_GA_art_noise = ga(GA_fitness_art_noise,length(Pattern_polys(1,:)),[],[],[],[],[],[],[],[],options);
+    Pattern_poly_simu_diff_amp(ii,:) = x_GA_art_noise;
+    save(['simu_art_data_noise_diff_amp_300iters_500population'],'Pattern_poly_simu_diff_amp'); 
+end
+Pattern_poly_simu_diff_amp_rep{end+1} = Pattern_poly_simu_diff_amp;
+
+
 %% GA again to estimate artificial data
-% -----------initial population for GA----------
-% try decovolute artificial data for 5 different amplitude value
+% try decovolute artificial data for different polyNbr
 Pattern_poly_simu_diff_polyNbr = zeros(10,num_possible_poly);
 Pattern_poly_art_diff_polyNbr = zeros(10,num_possible_poly);
 art_signal_noise_diff_polyNbr = zeros(10,frame_num);
@@ -173,6 +208,7 @@ for ii = 1:10
     % try artificial data for different amplitude value
     art_signal_noise_i = sum_signal_art + mean_sig + (amplitude*2*(rand(1,length(sum_signal_art))-0.5)).*var_sig;
     art_signal_noise_diff_polyNbr(ii,:) = art_signal_noise_i;
+    
     % prepare initial population 
     Nbr_simu_DNA = 500; % number of "chromosome" in GA
     Nbr_poly_estimate = ii*30-10; % different for every data
@@ -196,7 +232,10 @@ for ii = 1:10
     Pattern_poly_simu_diff_polyNbr(ii,:) = x_GA_art_noise;
     save(['simu_art_data_noise_diff_polyNbr(',num2str(ii*30),')_300iters_500population'],'x_GA_art_noise'); 
 end
-% -----visualize GA result------ 
+
+
+%% -----visualize GA result------ 
+% ==========comparison of different polyNbr ===========
 % blue GA data, red artifical experiment data
 figure(1)
 for ii = 1:10
@@ -212,7 +251,6 @@ end
 
 Pattern_poly_art_no_noise = x_GA_art;
 Pattern_poly_list_diff_amp = Pattern_poly_list; % store data for different amp value, load data from file
-Pattern_poly_art_diff_amp = Pattern_poly_art; % Pattern poly for num_poly = 90, load data from file
 distance_pattern_poly = @(x) sum((x(1:length(Trans_positions_art))-Trans_positions_art).^2);
 figure(1)
 plot(find(Pattern_poly_list(1,:)==1),1,'Marker','o','color','red')
@@ -221,7 +259,6 @@ plot(Trans_positions_art,1,'Marker','x','color','blue')
 
 % ----------Measure the difference between art and simu data---------
 % use Hausdorff distance
-
 % different poly nbr
 hd_dist_list = [];
 df_nbr_poly = [];
@@ -236,14 +273,122 @@ plot(hd_dist_list,'o')
 hold on 
 plot(df_nbr_poly*200,'marker','o','color','red')
 
-% different amplitude
+% ============comparison of different amplitude================
+figure(1)
+for ii = 1:10
+    subplot(5,2,ii)
+    plot(sumSignal(find(Pattern_poly_art_diff_amp==1),Parameters),'red')
+    hold on 
+    plot(sumSignal(find(Pattern_poly_simu_diff_amp(ii,:)==1),Parameters))
+    plot(art_signal_noise_diff_amp(ii,:),'black')
+    legend('art data','simu data','art data noise')
+    title(['Nbr Poly=150, amp=',num2str(ii*0.1)])
+end 
 
+% ----------Measure the difference between art and simu data---------
+% use Hausdorff distance
+% different poly nbr
+hd_dist_list = [];
+df_nbr_poly = [];
+for ii = 1:10 
+    art_posi = find(Pattern_poly_art_diff_amp);
+    simu_posi = find(Pattern_poly_simu_diff_amp(ii,:));
+    hd_dist_list(ii) = HausdorffDist(transpose(art_posi),transpose(simu_posi));
+    df_nbr_poly(ii) = abs(length(art_posi)-length(simu_posi))/length(art_posi);   % difference of poly number
+end
 
+figure(2)
+plot(hd_dist_list,'o')
+hold on 
+plot(df_nbr_poly*200,'marker','o','color','red')
 
+% check how many position is exactly the same
+same_position_GA = [];
+same_position_range_GA = [];
+tr_posi= find(Pattern_poly_art_diff_amp==1);
+tr_posi_range = [tr_posi,tr_posi+1,tr_posi+2,tr_posi-1,tr_posi-2]; % permit_range = 2;
+for ii = 1:10
+    same_position_GA(ii) =length( intersect(find(Pattern_poly_simu_diff_amp(ii,:)==1),find(Pattern_poly_art_diff_amp==1)));
+    same_position_range_GA(ii) = length(intersect(find(Pattern_poly_simu_diff_amp(ii,:)==1),tr_posi_range));
+end
+%% Gradient descent after GA
+% -------------Yang's GD-----------------
+% for every transcription start position (x_GA==1), try to shift it (left
+% or right), to optimize the result for different amp
+poly_position_diff_amp_GD = {}; % store the result after GD
+for ii = 1:10
+    ii
+    sum_signal_art = art_signal_noise_diff_amp(ii,:);
+    GD_y_fitness = @(x) sum((sumSignal(x,Parameters)-sum_signal_art).^2); % x: positions of poly
+    shift_window = round(num_possible_poly/150)+10; % one position can move [-s_w,s_w]
+    trans_position_y = find(Pattern_poly_simu_diff_amp(ii,:)==1);
+    Min_fit = GD_y_fitness(trans_position_y);
+    for posi_i = 1: length(trans_position_y)
+        new_tr_p = trans_position_y;
+        for j = -shift_window:shift_window
+            new_tr_p(posi_i) = trans_position_y(posi_i)+j;
+            if new_tr_p(posi_i) <= 0
+                continue
+            end
+            if GD_y_fitness(new_tr_p)<Min_fit
+                trans_position_y = new_tr_p;
+                Min_fit = GD_y_fitness(trans_position_y);
+            end
+        end
+    end
+    poly_position_diff_amp_GD{ii} = trans_position_y;
+end
 
+% check signal plot
+figure(10)
+plot(sumSignal(poly_position_diff_amp_GD{10},Parameters))
+hold on 
+plot(art_signal_noise_diff_amp(10,:),'black')
+% check each position
+figure(5)
+plot(poly_position_diff_amp_GD{ii},1,'Marker','o','color','red')
+hold on 
+plot(find(Pattern_poly_art_diff_amp==1),1,'Marker','x','color','blue')
 
-
-
-
-
+% chech hausdorff distance
+% check how many position is exactly the same
+same_position = [];
+same_position_range = [];
+hd_dist_list_GD = [];
+tr_posi = find(Pattern_poly_art_diff_amp==1);
+tr_posi_range = [tr_posi,tr_posi+1,tr_posi+2,tr_posi-1,tr_posi-2]; % permit_range = 2;
+for ii = 1:10 
+    % hd dist
+    art_posi = find(Pattern_poly_art_diff_amp==1);
+    simu_posi = poly_position_diff_amp_GD{ii};
+    hd_dist_list_GD(ii) = HausdorffDist(transpose(art_posi),transpose(simu_posi));
+    % how many position is within certain range
+    same_position(ii) =length( intersect(poly_position_diff_amp_GD{ii},find(Pattern_poly_art_diff_amp==1)));
+    same_position_range(ii) = length(intersect(poly_position_diff_amp_GD{ii},tr_posi_range));
     
+end
+figure(3)
+plot(hd_dist_list_GD,'marker','o','color','blue')
+hold on
+plot(hd_dist_list,'marker','o','color','red')
+plot(same_position_range,'marker','x','color','black')
+plot(same_position_range_GA,'marker','x','color','green')
+legend('hd distance after GD','hd distance after GA','approximately same position nbr after GD','approximately same position nbr after GA')
+
+
+% check how many position is exactly the same
+% check polyNbr 
+
+length(poly_position_diff_amp_GD{ii})
+same_position = intersect(poly_position_diff_amp_GD{ii},find(Pattern_poly_art_diff_amp==1));
+% check how many position is no more than permit_range
+tr_posi = find(Pattern_poly_art_diff_amp==1);
+tr_posi_range = [tr_posi,tr_posi+1,tr_posi+2,tr_posi-1,tr_posi-2]; % permit_range = 2;
+same_position_range2 = intersect(poly_position_diff_amp_GD{ii},tr_posi_range);
+
+
+
+
+
+
+

@@ -54,14 +54,17 @@ Generate artificial data
 
 '''
 
-Nbr_ploy = 150    
-Poly_position_art = np.random.choice(range(2900),size=Nbr_ploy,replace=False)
+Nbr_poly= 150    
+Poly_position_art = np.random.choice(range(2900),size=Nbr_poly,replace=False)
 sum_signal_art = sumSignal(Poly_position_art,Parameters)
-pop_GA,stats, hof=GA(sum_signal_art,Parameters,IND_SIZE = num_possible_poly,Population_Nbr=500,Max_gen=10)
+pop_GA,stats, hof=GA(sum_signal_art,Parameters,IND_SIZE = num_possible_poly,Population_Nbr=20,Max_gen=10,Nbr_poly_estimate=170)
     
-plot()
+'''
+pop_GA.sort(key=lambda ind:ind.fitness.values)
+plot(sumSignal(np.where(pop_GA[0]==1)[0],Parameters))
+plot(sum_signal_art,'red')
     
-    
+'''
     
     
     

@@ -60,7 +60,13 @@ def cxTwoPointCopy(ind1, ind2):
         = ind2[cxpoint1:cxpoint2].copy(), ind1[cxpoint1:cxpoint2].copy()
         
     return ind1, ind2
-    
+
+def generate_individual(IND_SIZE,Nbr_poly_estimate=150):
+    Poly_position = np.random.choice(range(int(IND_SIZE)),size=Nbr_poly_estimate,replace=False)
+    Pattern_poly = np.zeros(int(IND_SIZE))
+    Pattern_poly[Poly_position] = 1
+    return Pattern_poly
+
     
 '''
 Genetic Algorithm 
@@ -72,14 +78,15 @@ input:
     population_Nbr: number of population in GA
     
 '''
-def GA(sum_signal_art,Parameters,IND_SIZE = 4,Population_Nbr=50,Max_gen=20):
+def GA(sum_signal_art,Parameters,IND_SIZE = 4,Population_Nbr=50,Max_gen=20,Nbr_poly_estimate=150):
     creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
     creator.create("Individual", numpy.ndarray, fitness=creator.FitnessMin)
     
     toolbox = base.Toolbox()
     
-    toolbox.register("attr_bool", random.randint, 0, 1)
-    toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attr_bool, n=int(IND_SIZE))
+    #toolbox.register("attr_bool", random.randint, 0, 1)
+    toolbox.register("generate_individual", generate_individual, IND_SIZE,Nbr_poly_estimate)
+    toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.generate_individual)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)                                                                                      
     
     toolbox.register("evaluate", evalOneMax,sum_signal_art=sum_signal_art,Parameters=Parameters)

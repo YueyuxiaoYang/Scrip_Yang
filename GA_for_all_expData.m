@@ -195,9 +195,9 @@ end
 
 %% GA again to estimate artificial data
 % try decovolute artificial data for different polyNbr
-Pattern_poly_simu_diff_polyNbr = zeros(10,num_possible_poly);
-Pattern_poly_art_diff_polyNbr = zeros(10,num_possible_poly);
-art_signal_noise_diff_polyNbr = zeros(10,frame_num);
+simu_data_diff_polyNbr_rep = struct;
+art_data_diff_polyNbr = struct;
+count_simu_polyNbr = 1;
 for ii = 1:10
     %create artificial data for different poly nbr
     Nbr_poly = ii*30;
@@ -206,38 +206,48 @@ for ii = 1:10
     Trans_positions_art = find(Pattern_poly_art==1);
     sum_signal_art = sumSignal(Trans_positions_art,Parameters);
     
-    Pattern_poly_art_diff_polyNbr(ii,:) = Pattern_poly_art;  % store art_data poly position
-
     % add noise
     var_sig = polyval(p,sum_signal_art);
     % amplitude_list = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8, 0.9,1]; % control amplitude of noise
     amplitude = 0.5;
     % try artificial data for different amplitude value
     art_signal_noise_i = sum_signal_art + mean_sig + (amplitude*2*(rand(1,length(sum_signal_art))-0.5)).*var_sig;
-    art_signal_noise_diff_polyNbr(ii,:) = art_signal_noise_i;
-    
-    % prepare initial population 
-    Nbr_simu_DNA = 500; % number of "chromosome" in GA
-    Nbr_poly_estimate = ii*30-10; % different for every data
-    Pattern_polys = zeros(Nbr_simu_DNA,num_possible_poly);
-    for i = 1:Nbr_simu_DNA
-        Pattern_polys(i,randperm(num_possible_poly,Nbr_poly_estimate)) = 1; % randomly choose poly position 
-    %     Trans_positions_art = find(Pattern_poly_art(i,:)==1);
+    %art_signal_noise_diff_polyNbr(ii,:) = art_signal_noise_i;
+
+    art_data_diff_polyNbr(ii).Amp = 0.5;
+    art_data_diff_polyNbr(ii).polyNbr = ii*30;
+    art_data_diff_polyNbr(ii).trans_posi_art = Trans_positions_art;
+    art_data_diff_polyNbr(ii).signal_noise = art_signal_noise_i;
+  
+    for rep_i = 1:8
+        % prepare initial population 
+        Nbr_simu_DNA = 500; % number of "chromosome" in GA
+        Nbr_poly_estimate = ii*30-20; % different for every data
+        Pattern_polys = zeros(Nbr_simu_DNA,num_possible_poly);
+        for i = 1:Nbr_simu_DNA
+            Pattern_polys(i,randperm(num_possible_poly,Nbr_poly_estimate)) = 1; % randomly choose poly position 
+        %     Trans_positions_art = find(Pattern_poly_art(i,:)==1);
+        end
+
+        % ----------GA----------------
+        GA_fitness_art_noise = @(x) sum((sumSignal(find(x==1),Parameters)-art_signal_noise_i).^2);
+    %     GA_fitness_art = @(x) sum((sumSignal(find(x==1),Parameters)-sum_signal_art).^2);
+        options = gaoptimset;
+        options = gaoptimset(options,'PopulationType', 'bitstring', 'CreationFcn',@gacreationuniform,'MutationFcn',@mutationuniform,...
+            'Display','iter','TolFun',1e-8,'Paretofraction',0.35,'Generations',100);
+
+        options = gaoptimset(options,'PopulationSize', Nbr_simu_DNA);
+        options = gaoptimset(options,'InitialPopulation', Pattern_polys);
+        % x_GA = ga(GA_fitness_art,length(Pattern_poly_art),[],[],[],[],[],[],[],[],options);
+        x_GA_art_noise = ga(GA_fitness_art_noise,length(Pattern_polys(1,:)),[],[],[],[],[],[],[],[],options);
+        
+        simu_data_diff_polyNbr_rep(count_simu_polyNbr).polyNbr = Nbr_poly;
+        simu_data_diff_polyNbr_rep(count_simu_polyNbr).amp = 0.5;
+        simu_data_diff_polyNbr_rep(count_simu_polyNbr).trans_posi = find(x_GA_art_noise==1);
+        count_simu_polyNbr = count_simu_polyNbr+1;
     end
-
-    % ----------GA----------------
-    GA_fitness_art_noise = @(x) sum((sumSignal(find(x==1),Parameters)-art_signal_noise_i).^2);
-%     GA_fitness_art = @(x) sum((sumSignal(find(x==1),Parameters)-sum_signal_art).^2);
-    options = gaoptimset;
-    options = gaoptimset(options,'PopulationType', 'bitstring', 'CreationFcn',@gacreationuniform,'MutationFcn',@mutationuniform,...
-        'Display','iter','TolFun',1e-8,'Paretofraction',0.35,'Generations',300);
-
-    options = gaoptimset(options,'PopulationSize', Nbr_simu_DNA);
-    options = gaoptimset(options,'InitialPopulation', Pattern_polys);
-    % x_GA = ga(GA_fitness_art,length(Pattern_poly_art),[],[],[],[],[],[],[],[],options);
-    x_GA_art_noise = ga(GA_fitness_art_noise,length(Pattern_polys(1,:)),[],[],[],[],[],[],[],[],options);
-    Pattern_poly_simu_diff_polyNbr(ii,:) = x_GA_art_noise;
-    save(['simu_art_data_noise_diff_polyNbr(',num2str(ii*30),')_300iters_500population'],'x_GA_art_noise'); 
+    save(['simu_data_noise_diff_polyNbr(polyNbr',num2str(ii*30),')_100iters_500population'],'simu_data_diff_polyNbr_rep'); 
+    save(['art_data_noise_diff_polyNbr(polyNbr',num2str(ii*30),')_100iters_500population'],'art_data_diff_polyNbr');
 end
 
 
@@ -306,6 +316,7 @@ boxplot(same_position_range_GA_rep,'color','b')
 plot(mean(same_position_range_GA_rep),'o')
 %% Gradient descent after GA
 % -------------Yang's GD-----------------
+% ========different Amplitude===========
 % for every transcription start position (x_GA==1), try to shift it (left
 % or right), to optimize the result for different amp
 poly_position_diff_amp_GD = {}; % store the result after GD
@@ -336,6 +347,42 @@ for rep_i = 1:length(Pattern_poly_simu_diff_amp_rep) % depends on how many repea
     end
     poly_position_diff_amp_GD_rep{rep_i} = poly_position_diff_amp_GD;
 end
+
+% =========Different PolyNbr==============
+% for every transcription start position (x_GA==1), try to shift it (left
+% or right), to optimize the result for different polyNbr
+matlabpool local 2;
+poly_position_diff_polyNbr_GD = {}; % store the result after GD
+poly_position_diff_polyNbr_GD_rep = cell(1,8); % store the result after GD for 9 repeat experiment
+parfor simu_i = 1:length(simu_data_diff_polyNbr_rep) % depends on how many repeat simu of GA
+    simu_i
+    tic
+    s = simu_data_diff_polyNbr_rep(simu_i);
+    Nbr_poly_y = s.polyNbr; % estimate polyNbr by GA 
+    sum_signal_art = art_data_diff_polyNbr(Nbr_poly_y/30).signal_noise;
+    GD_y_fitness = @(x) sum((sumSignal(x,Parameters)-sum_signal_art).^2); % x: positions of poly
+    shift_window = round(num_possible_poly/Nbr_poly_y)+10; % one position can move [-s_w,s_w]
+    trans_position_y = s.trans_posi;
+    Min_fit = GD_y_fitness(trans_position_y);
+    for posi_i = 1: length(trans_position_y)
+        new_tr_p = trans_position_y;
+        for j = -shift_window:shift_window
+            new_tr_p(posi_i) = trans_position_y(posi_i)+j;
+            if new_tr_p(posi_i) <= 0
+                continue
+            end
+            if GD_y_fitness(new_tr_p)<Min_fit
+                trans_position_y = new_tr_p;
+                Min_fit = GD_y_fitness(trans_position_y);
+            end
+        end
+    end
+    simu_data_diff_polyNbr_rep(simu_i).trans_posi_GDy = trans_position_y;
+    toc
+end
+
+matlabpool close
+
 
 % % check signal plot
 % figure(10)
@@ -442,8 +489,26 @@ tr_posi_range = [tr_posi,tr_posi+1,tr_posi+2,tr_posi-1,tr_posi-2]; % permit_rang
 same_position_range2 = intersect(poly_position_diff_amp_GD{ii},tr_posi_range);
 
 
+% try parallel computing
 
+c = 1:10000000;
+a = ones(10000000,1);
+tic
+for i = 1:length(c)
+    a(i)= a(i)+ c(i);
+end
+toc
 
+matlabpool local 2;
+c = 1:10000000;
+a = ones(10000000,1);
+tic
+parfor i = 1:length(c)
+    a(i)= a(i)+ c(i);
+end
+toc
+
+matlabpool close
 
 
 

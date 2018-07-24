@@ -192,6 +192,24 @@ for   rep_i = 1:10; % iter number for repeating compute same art_data with diffe
     end
     Pattern_poly_simu_diff_amp_rep{rep_i} = Pattern_poly_simu_diff_amp; % repeat simu 9 times for 9 diff amp
 end
+% transform data structure
+simu_data_diff_amp_rep = struct;
+art_data_diff_amp = struct;
+count_s_a = 1;
+for amp_i = 1:10
+    for rep_i = 1:8
+        amp = amplitude_list(amp_i);
+        s_p = find(Pattern_poly_simu_diff_amp_rep{rep_i}(amp_i,:));
+        s_p_gd = poly_position_diff_amp_GD_rep{rep_i}{amp_i};
+        simu_data_diff_amp_rep(count_s_a).polyNbr = 150;
+        simu_data_diff_amp_rep(count_s_a).amp = amp;
+        simu_data_diff_amp_rep(count_s_a).trans_posi = s_p;
+        simu_data_diff_amp_rep(count_s_a).trans_posi_GDy = s_p_gd;
+        count_s_a = count_s_a+1;
+    end
+end
+
+
 
 %% GA again to estimate artificial data
 % try decovolute artificial data for different polyNbr
@@ -383,7 +401,7 @@ end
 
 matlabpool close
 
-
+%% Visualize data
 % % check signal plot
 % figure(10)
 % plot(sumSignal(poly_position_diff_amp_GD{10},Parameters))
@@ -395,10 +413,11 @@ matlabpool close
 % hold on 
 % plot(find(Pattern_poly_art_diff_amp==1),1,'Marker','x','color','blue')
 
-% chech hausdorff distance
+% ============different amplitude==========
+% chech Jaccard distance
 % check how many position is exactly/approximately the same
-jd_dist = @(a,b) length(intersect(a,b))/length(union(a,b)); % compute Jaccard distance
-jd_approximate_dist =  @(ref,b) length(intersect(unique([ref-1,ref-2,ref,ref+1,ref+2]),b))/length(union(ref,b));
+jd_dist = @(a,b) 1-length(intersect(a,b))/length(union(a,b)); % compute Jaccard distance
+jd_approximate_dist =  @(ref,b) 1-(length(intersect(unique([ref-1,ref-2,ref,ref+1,ref+2]),unique([b-1,b-2,b,b+1,b+2])))/length(union(unique([ref-1,ref-2,ref,ref+1,ref+2]),unique([b-1,b-2,b,b+1,b+2]))));
 jaccard_dist_GA = [];
 jaccard_dist_GA_rep = zeros(length(Pattern_poly_simu_diff_amp_rep),10); % store Jaccard distance for repeat GA simulation
 jaccard_dist_GD = [];
@@ -433,7 +452,29 @@ for rep_i = 1:length(Pattern_poly_simu_diff_amp_rep)
     
 end
 
-% visualize 9 repeat result 
+% ============different polyNbr==========
+jaccard_dist_GA_polyNbr_rep = zeros(8,10);
+jaccard_dist_GD_polyNbr_rep = zeros(8,10);
+jaccard_dist_GA_polyNbr_rep_approx= zeros(8,10);
+jaccard_dist_GD_polyNbr_rep_approx = zeros(8,10);
+%jd_GA_amp=zeros(8,10);
+for ii = 1:length(simu_data_diff_polyNbr_rep) 
+    s = simu_data_diff_polyNbr_rep(ii);
+    polyNbr = s.polyNbr;
+    art_posi = art_data_diff_polyNbr([art_data_diff_polyNbr.polyNbr]==polyNbr).trans_posi_art;
+    jaccard_dist_GA_polyNbr_rep(ii) = jd_dist(art_posi,s.trans_posi);
+    jaccard_dist_GD_polyNbr_rep(ii) = jd_dist(art_posi,s.trans_posi_GDy);
+    jaccard_dist_GA_polyNbr_rep_approx(ii) = jd_approximate_dist(art_posi,s.trans_posi);
+    jaccard_dist_GD_polyNbr_rep_approx(ii) = jd_approximate_dist(art_posi,s.trans_posi_GDy);
+   
+%     s_a = simu_data_diff_amp_rep(ii);
+%     art_posi_amp = find(Pattern_poly_art_diff_amp==1);
+%     jd_GA_amp(ii) = jd_dist(art_posi_amp,s_a.trans_posi);
+%     
+end
+
+
+% =======visualize simulation result diff amp===========
 figure(3)
 boxplot(jaccard_dist_GA_rep,'color','r')
 hold on
@@ -456,26 +497,107 @@ title('Compare approximate Jaccard distance of 10 amplitudes(0-2.7) with 8 repea
 xlabel('Amplitude of noise(x0.3)')
 ylabel('Approximate Jaccard distance')
 
-figure(4)
-hold on 
-boxplot(same_position_range_GD_rep,'color','b')
-boxplot(same_position_range_GA_rep,'color','r')
-plot(mean(same_position_range_GA_rep),'marker','o','color','r')
-plot(mean(same_position_range_GD_rep),'marker','o','color','b')
-ylim([20,100])
-legend('approximately same position nbr after GA','approximately same position nbr after GD')
-title('Compare approxiamtely same position nbr of 9 different amplitude with 9 repeated simulation(150 poly)')
-xlabel('Amplitude of noise(x0.1)')
-ylabel('approximately same position nbr')
-
-figure(3)
-plot(hd_dist_list_GD_rep(2,:),'marker','o','color','blue')
+figure(5)
 hold on
-plot(hd_dist_list,'marker','o','color','red')
-plot(same_position_range_GD,'marker','x','color','black')
-plot(same_position_range_GA,'marker','x','color','green')
-legend('hd distance after GD','hd distance after GA','approximately same position nbr after GD','approximately same position nbr after GA')
+x = find(Pattern_poly_art_diff_amp==1);
+y = 1:0.1:9;
+[X,Y] = meshgrid(x,y);
+line(X,Y,'color',[0,0.7,0.9])
+legend('Artificial polymerase position')
+for ii = 1:length(Pattern_poly_simu_diff_amp_rep)
+    amp_i = Pattern_poly_simu_diff_amp_rep{ii};
+    p_posi = find(amp_i(1,:)==1);
+    same_position1 = intersect(p_posi,find(Pattern_poly_art_diff_amp==1));
+    plot(same_position,ii,'Marker','^','color','red')
+    plot(p_posi,ii,'Marker','o','color',[0.01*ii,0.1*ii,0.01*ii])
+end
+title('Polymerase position of 10 amplitudes(0-2.7) with 8 repeated simulation(same art-data)')
+xlabel('Polymerase position after GA')
+ylabel('Amplitude of noise(x0.3)')
 
+
+figure(6)
+hold on
+x = find(Pattern_poly_art_diff_amp==1);
+y = 1:0.1:9;
+[X,Y] = meshgrid(x,y);
+line(X,Y,'color',[0,0.7,0.9])
+legend('Artificial polymerase position')
+for ii = 1:length(poly_position_diff_amp_GD_rep)
+    amp_i = poly_position_diff_amp_GD_rep{ii};
+    p_posi = amp_i{1};
+    same_position = intersect(p_posi,find(Pattern_poly_art_diff_amp==1));
+    plot(p_posi,ii,'Marker','o','color',[0.01*ii,0.1*ii,0.01*ii])
+    plot(same_position,ii,'Marker','^','color','red')
+end
+title('Polymerase position of 10 amplitudes(0-2.7) with 8 repeated simulation(same art-data)')
+xlabel('Polymerase position after GD')
+ylabel('Amplitude of noise(x0.3)')
+
+figure(8)
+hold on 
+for si = 40:40
+    x = find(Pattern_poly_art_diff_amp==1);
+    y = simu_data_diff_amp_rep(si).trans_posi_GDy;
+    x1 = zeros(1,length(y));
+    for ii = 1:length(y)
+        [m,min_ind] = min(abs(x-y(ii)));
+        x1(ii) = x(min_ind);
+    end
+    plot(x1,y,'.','color',[0.01,0.3,0.01]*simu_data_diff_amp_rep(si).amp,'markersize',6)
+end
+line(x,x,'color','red')
+for i=1:length(x),plot([x(i),x(i)],[0,x(i)],'k'),end
+
+
+% =======visualize simulation result diff polyNbr===========
+figure(13)
+hold on
+boxplot(jaccard_dist_GA_polyNbr_rep,'color','r')
+boxplot(jaccard_dist_GD_polyNbr_rep,'color','b')
+plot(mean(jaccard_dist_GA_polyNbr_rep),'marker','o','color','r')
+plot(mean(jaccard_dist_GD_polyNbr_rep),'marker','o','color','b')
+legend('Jaccard distance after GA','Jaccard distance after GD')
+title('Compare Jaccard distance of 10 PolyNbr(30-300) with 8 repeat)')
+xlabel('Polymerase Number(x30)')
+ylabel('Jaccard distance')
+ylim([0.8,1])
+
+figure(14)
+boxplot(jaccard_dist_GA_polyNbr_rep_approx,'color','r')
+hold on
+boxplot(jaccard_dist_GD_polyNbr_rep_approx,'color','b')
+plot(mean(jaccard_dist_GA_polyNbr_rep_approx),'marker','o','color','r')
+plot(mean(jaccard_dist_GD_polyNbr_rep_approx),'marker','o','color','b')
+legend('Jaccard distance after GA','Jaccard distance after GD')
+title('Compare approximate Jaccard distance of 10 polyNbr(30-300) with 8 repeated simulation')
+xlabel('Polymerase number (x3`0)')
+ylabel('Approximate Jaccard distance')
+ylim([0.5,1])
+
+% diff num of art_data and simu_data
+dff_frac = zeros(8,10);
+for ii = 1:80
+    s = simu_data_diff_polyNbr_rep(ii);
+    dff_frac(ii) = (length(s.trans_posi)-s.polyNbr)/s.polyNbr;
+end
+figure(18)
+hold on 
+boxplot(dff_frac,'color','r')
+
+% Empirical cumulative distribution function
+figure(19)
+hold on
+[f_a,x_a] = ecdf(diff(sort(art_data_diff_polyNbr(5).trans_posi_art)));
+[f_s,x_s] = ecdf(diff(sort(simu_data_diff_polyNbr_rep(38).trans_posi)));
+[f_gd,x_gd] = ecdf(diff(sort(simu_data_diff_polyNbr_rep(38).trans_posi_GDy)));
+plot(x_a,f_a,'r')
+plot(x_s,f_s,'b')
+plot(x_gd,f_gd,'g')
+legend('ecdf of artificial data','ecdf after GA','ecdf after GD')
+title('ECDF of art-data, GA simulation and GD')
+xlabel('wating time (polymerase position)')
+ylabel('ECDF')
 
 
 % check how many position is exactly the same

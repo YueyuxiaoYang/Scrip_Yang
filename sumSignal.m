@@ -8,7 +8,7 @@
 
 function [Sum_signals] = sumSignal(Trans_positions,Parameters)
     [FreqEchSimu, FreqEchImg,DureeSimu,NbrSondeFluo,ProbeByIntensitie_nb,...
-            TaillePreMarq,TailleSeqMarq, TaillePostMarq, Polym_speed,frame_num] = deal(Parameters{:});
+            TaillePreMarq,TailleSeqMarq, TaillePostMarq, Polym_speed,frame_num,num_possible_poly,EspaceInterPolyMin,DureeSimu] = deal(Parameters{:});
     l_signal = length(getSignal(1, Parameters));
     Sum_signals = zeros(1,l_signal);
     signals = [];

@@ -83,11 +83,14 @@ for data_i = 1:8%length(file_name_list)
 end
 
 %% visualize
-for ii = 5:8
+s = simu_exp_data;
+for ii = 1:10:30
    figure(ii)
-   plot(sumSignal(find(simu_data{ii}==1),Parameters))
    hold on 
-   plot(exp_data{ii},'red')
+   e_s = s(ii).exp_signal;
+   plot(e_s,'red')
+   plot(sumSignal(s(ii).poly_posi,Parameters),'blue')
+   plot(sumSignal(s(ii+1).poly_posi,Parameters),'green')
 end
 
 %% Add noise
@@ -208,6 +211,9 @@ for amp_i = 1:10
         count_s_a = count_s_a+1;
     end
 end
+art_data_diff_amp.polyNbr=length(find(Pattern_poly_art_diff_amp==1));
+art_data_diff_amp.trans_posi_art=find(Pattern_poly_art_diff_amp==1);
+
 
 
 
@@ -379,7 +385,7 @@ parfor simu_i = 1:length(simu_data_diff_polyNbr_rep) % depends on how many repea
     Nbr_poly_y = s.polyNbr; % estimate polyNbr by GA 
     sum_signal_art = art_data_diff_polyNbr(Nbr_poly_y/30).signal_noise;
     GD_y_fitness = @(x) sum((sumSignal(x,Parameters)-sum_signal_art).^2); % x: positions of poly
-    shift_window = round(num_possible_poly/Nbr_poly_y)+10; % one position can move [-s_w,s_w]
+    shift_window = round(num_possible_poly/Nbr_poly_y)*2+10; % one position can move [-s_w,s_w]
     trans_position_y = s.trans_posi;
     Min_fit = GD_y_fitness(trans_position_y);
     for posi_i = 1: length(trans_position_y)
@@ -395,11 +401,51 @@ parfor simu_i = 1:length(simu_data_diff_polyNbr_rep) % depends on how many repea
             end
         end
     end
-    simu_data_diff_polyNbr_rep(simu_i).trans_posi_GDy = trans_position_y;
+    simu_data_diff_polyNbr_rep(simu_i).trans_posi_GDy_sw2 = trans_position_y;
     toc
 end
 
 matlabpool close
+
+% =========Different shift_window==============
+% for every transcription start position (x_GA==1), try to shift it (left
+% or right), to optimize the result for different polyNbr
+matlabpool local 2;
+simu_data_diff_sw = struct;
+simu_data_diff_sw = simu_data_diff_polyNbr_rep(33);
+simu_data_diff_sw(2:8) = simu_data_diff_polyNbr_rep(34:40);
+for rep_i = 1:1 % depends on how many repeat simu of GA
+    rep_i
+    tic
+    Nbr_poly_y = simu_data_diff_sw(rep_i).polyNbr; % estimate polyNbr by GA 
+    simu_data_diff_sw(rep_i).trans_posi_diff_sw = zeros(10,length(simu_data_diff_sw(rep_i).trans_posi));
+    sum_signal_art = art_data_diff_polyNbr(Nbr_poly_y/30).signal_noise;
+    GD_y_fitness = @(x) sum((sumSignal(x,Parameters)-sum_signal_art).^2); % x: positions of poly
+    for sw = 1:1
+        shift_window = 10*sw; % one position can move [-s_w,s_w]
+        trans_position_y = simu_data_diff_sw(rep_i).trans_posi;
+        Min_fit = GD_y_fitness(trans_position_y);
+        for posi_i = 1: length(trans_position_y)
+            new_tr_p = trans_position_y;
+            for j = -shift_window:shift_window
+                new_tr_p(posi_i) = trans_position_y(posi_i)+j;
+                if new_tr_p(posi_i) <= 0
+                    continue
+                end
+                if GD_y_fitness(new_tr_p)<Min_fit
+                    trans_position_y = new_tr_p;
+                    Min_fit = GD_y_fitness(trans_position_y);
+                end
+            end
+        end
+        simu_data_diff_sw(rep_i).trans_posi_diff_sw(sw,:) = trans_position_y;
+    end
+    simu_data_diff_sw(rep_i).trans_posi_GDy_sw2 = trans_position_y;
+    toc
+end
+
+matlabpool close
+
 
 %% Visualize data
 % % check signal plot
@@ -473,6 +519,29 @@ for ii = 1:length(simu_data_diff_polyNbr_rep)
 %     
 end
 
+% ============different shift window==========
+% polyNbr = 150, amp=0.5, rep = 5, GAiters = 100, GApop=500,
+jd_sw = zeros(5,10);
+jd_sw_app = zeros(5,10);
+same_posi_sw = zeros(5,10);
+app_posi_sw = zeros(5,10);
+%jd_GA_amp=zeros(8,10);
+for rep_i = 1:5
+    for sw_i = 1:10
+        s = simu_data_diff_sw(rep_i);
+        art_posi = art_data_diff_polyNbr(5).trans_posi_art;
+        sw_posi = s.trans_posi_diff_sw(sw_i,:);
+%         jd_sw(rep_i,sw_i) = jd_dist(art_posi,sw_posi);
+%         jd_sw_app(rep_i,sw_i) = jd_approximate_dist(art_posi,sw_posi);
+        same_posi_sw(rep_i,sw_i) = length(intersect(art_posi,sw_posi));
+        ref = art_posi;
+        app_posi_sw(rep_i,sw_i) = length(intersect(unique([ref-1,ref-2,ref,ref+1,ref+2]),sw_posi));
+    end
+%     s_a = simu_data_diff_amp_rep(ii);
+%     art_posi_amp = find(Pattern_poly_art_diff_amp==1);
+%     jd_GA_amp(ii) = jd_dist(art_posi_amp,s_a.trans_posi);
+%     
+end
 
 % =======visualize simulation result diff amp===========
 figure(3)
@@ -516,7 +585,7 @@ xlabel('Polymerase position after GA')
 ylabel('Amplitude of noise(x0.3)')
 
 
-figure(6)
+figure(7)
 hold on
 x = find(Pattern_poly_art_diff_amp==1);
 y = 1:0.1:9;
@@ -549,6 +618,31 @@ end
 line(x,x,'color','red')
 for i=1:length(x),plot([x(i),x(i)],[0,x(i)],'k'),end
 
+% -----------kstest--------
+ks_test_ga = zeros(8,10);
+ks_test_gd = zeros(8,10);
+dx_a = diff(sort(art_data_diff_amp.trans_posi_art));
+for ii=1:80
+              
+        dx_s_ga = diff(sort(simu_data_diff_amp_rep(ii).trans_posi));
+        dx_s_gd = diff(sort(simu_data_diff_amp_rep(ii).trans_posi_GDy));
+        [h_ga,p_ga] = kstest2(dx_a,dx_s_ga);
+        [h_gd,p_gd] = kstest2(dx_a,dx_s_gd);
+        ks_test_ga(ii) = p_ga;
+        ks_test_gd(ii) = p_gd;
+    
+end
+figure(6)
+hold on
+boxplot(ks_test_ga,'color','r','Labels',[0:9]*0.3)
+boxplot(ks_test_gd,'color','b','Labels',[0:9]*0.3)
+plot(mean(ks_test_ga),'marker','o','color','r')
+plot(mean(ks_test_gd),'marker','o','color','b')
+legend('KStest after GA','KStest after GD')
+title('Compare KStest of 10 amp(0-2.7) with 8 repeat)')
+xlabel('amplitude of noise')
+ylabel('p-value')
+
 
 % =======visualize simulation result diff polyNbr===========
 figure(13)
@@ -575,6 +669,24 @@ xlabel('Polymerase number (x3`0)')
 ylabel('Approximate Jaccard distance')
 ylim([0.5,1])
 
+% ------position plot------
+figure(17)
+
+hold on 
+for pn = 1:8
+    a = simu_data_diff_polyNbr_rep(pn+72);
+    tp = a.trans_posi;
+    tp_gd = a.trans_posi_GDy;
+    plot(tp(1:50),pn,'color','b','marker','o')
+    plot(tp_gd(1:50),pn+0.2,'color','r','marker','x')
+
+end
+x = art_data_diff_polyNbr(5).trans_posi_art(1:55);
+y = 1:0.1:10;
+[X,Y] = meshgrid(x,y);
+line(X,Y,'color',[0,0.7,0.9])
+legend('Artificial polymerase position')
+
 % diff num of art_data and simu_data
 dff_frac = zeros(8,10);
 for ii = 1:80
@@ -599,6 +711,64 @@ title('ECDF of art-data, GA simulation and GD')
 xlabel('wating time (polymerase position)')
 ylabel('ECDF')
 
+% -----------kstest--------
+ks_test_ga = zeros(8,10);
+ks_test_gd = zeros(8,10);
+for ii=1:80
+        dx_a = diff(sort(art_data_diff_polyNbr(ceil(ii/8)).trans_posi_art));
+        dx_s_ga = diff(sort(simu_data_diff_polyNbr_rep(ii).trans_posi));
+        dx_s_gd = diff(sort(simu_data_diff_polyNbr_rep(ii).trans_posi_GDy));
+        [h_ga,p_ga] = kstest2(dx_a,dx_s_ga);
+        [h_ga,p_gd] = kstest2(dx_a,dx_s_gd);
+        ks_test_ga(ii) = p_ga;
+        ks_test_gd(ii) = p_gd;
+end
+figure(16)
+hold on
+boxplot(ks_test_ga,'color','r','Labels',30:30:300)
+boxplot(ks_test_gd,'color','b','Labels',30:30:300)
+plot(mean(ks_test_ga),'marker','o','color','r')
+plot(mean(ks_test_gd),'marker','o','color','b')
+% set(gca,'xtick',[]);
+legend('KStest after GA','KStest after GD')
+title('Compare KStest of 10 polyNbr(20-200) with 8 repeat)')
+xlabel('polyNbr')
+ylabel('p-value')
+
+
+% =======visualize simulation result diff polyNbr===========
+figure(23)
+hold on
+boxplot(jd_sw,'color','r','Labels',20:20:200)
+boxplot(jd_sw_app,'color','b','Labels',20:20:200)
+
+% boxplot(same_posi_sw,'color','r','Labels',20:20:200)
+% boxplot(app_posi_sw,'color','b','Labels',20:20:200)
+
+plot(mean(jd_sw),'marker','o','color','r')
+plot(mean(jd_sw_app),'marker','o','color','b')
+legend('Jaccard distance after GD','Jaccard approximate distance after GD')
+title('Compare Jaccard distance of 10 shift-window(20-200) with 5 repeat)')
+xlabel('shift-window length')
+ylabel('Jaccard distance')
+% set(gca,'xtick',1:10,'xticklabel',20:20:200)
+ylim([0.5,1])
+
+figure(24)
+a = simu_data_diff_sw(3);
+tp = a.trans_posi_diff_sw;
+hold on 
+for sw_i = 1:10
+    plot(tp(sw_i,1:50),sw_i,'color','b','marker','o')
+    plot(simu_data_diff_polyNbr_rep(35).trans_posi(1:50),sw_i+0.2,'color','r','marker','x')
+
+end
+x = art_data_diff_polyNbr(5).trans_posi_art(1:55);
+y = 1:0.1:10;
+[X,Y] = meshgrid(x,y);
+line(X,Y,'color',[0,0.7,0.9])
+legend('Artificial polymerase position')
+%============================================================
 
 % check how many position is exactly the same
 % check polyNbr 

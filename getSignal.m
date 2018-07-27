@@ -23,7 +23,7 @@
 % FreqEch = FreqEchSimu ,NSondeFluo = NbrSondeFluo,NSondeParIntensite=NombreSondeParIntensite
 function [n_signal]=getSignal(PolyPosition, Parameters) 
     [FreqEchS, FreqEchImg, DureeAnalysee, NSondeFluo, NSondeParIntensite,...
-        TaillePreMarq,TailleSeqMarq, TaillePostMarq, VitessePolymerase,frame_num] = deal(Parameters{:});
+        TaillePreMarq,TailleSeqMarq, TaillePostMarq, VitessePolymerase,frame_num,num_possible_poly,EspaceInterPolyMin,DureeSimu] = deal(Parameters{:});
     Intensity_for_1_Polym = NSondeFluo/NSondeParIntensite;
     T1 = round((TaillePreMarq/VitessePolymerase)*FreqEchS);
     T2 = round((TailleSeqMarq/VitessePolymerase)*FreqEchS);

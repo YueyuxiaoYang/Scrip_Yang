@@ -25,10 +25,12 @@ Gap4TrainDef = 2;
 exp_data = {};
 simu_data = {};
 
-%% Do GA for 8 files to find noise parameter
+%% =============Do GA for 8 files to find noise parameter==============
+% key parameters in this part:  Nbr_simu_DNA, Generations(GA's stop criteria),
+%                                
 for data_i = 1:8%length(file_name_list) 
     % -------input file----------
-    DataFileName = file_name_list{data_i}
+    DataFileName = file_name_list{data_i};
     DataExp = table2array(readtable(DataFileName, 'Delimiter','semi'));  
     DataExpSmooth = transp(DataExp(:,2));  % signal intensity in experiment data
     exp_data{end+1} = DataExpSmooth;
@@ -39,9 +41,10 @@ for data_i = 1:8%length(file_name_list)
     DureeAnalysee = DureeSignal + DureeSimu - round(TaillePreMarq / Polym_speed); % (s)
     FreqEchSimu = 1/(EspaceInterPolyMin/Polym_speed); % how many interval(possible poly start position) in 1s
     num_possible_poly = round(DureeAnalysee/(EspaceInterPolyMin/Polym_speed));
-    Parameters = {FreqEchSimu, FreqEchImg,DureeAnalysee,NbrSondeFluo,...
-            ProbeByIntensitie_nb,TaillePreMarq,TailleSeqMarq, TaillePostMarq, Polym_speed,frame_num};
+    Parameters = {FreqEchSimu, FreqEchImg,DureeAnalysee,NbrSondeFluo,ProbeByIntensitie_nb,TaillePreMarq,...
+            TailleSeqMarq, TaillePostMarq, Polym_speed,frame_num,num_possible_poly,EspaceInterPolyMin,DureeSimu};
     % ---------estimate poly number---------
+    % no necessary 
     eval_poly_num = [];
     GA_fitness_try_poly = @(x) sum((sumSignal(x,Parameters)-DataExpSmooth).^2);
     for num_p = 30:30:900
@@ -57,7 +60,7 @@ for data_i = 1:8%length(file_name_list)
         end
         eval_poly_num(end+1) = fitmin;  
     end
-    Nbr_poly_estimate = find(eval_poly_num==min(eval_poly_num))*30
+    Nbr_poly_estimate = find(eval_poly_num==min(eval_poly_num))*30;
 
     % -----------initial population for GA----------
     Nbr_simu_DNA = 500; % number of "chromosome" in GA
@@ -82,16 +85,16 @@ for data_i = 1:8%length(file_name_list)
     save(['simu_data(',num2str(data_i),')_200iters_500population'],'x_GA_exp'); 
 end
 
-%% visualize
-s = simu_exp_data;
-for ii = 1:10:30
-   figure(ii)
-   hold on 
-   e_s = s(ii).exp_signal;
-   plot(e_s,'red')
-   plot(sumSignal(s(ii).poly_posi,Parameters),'blue')
-   plot(sumSignal(s(ii+1).poly_posi,Parameters),'green')
-end
+% %% visualize
+% s = simu_exp_data;
+% for ii = 1:10:30
+%    figure(ii)
+%    hold on 
+%    e_s = s(ii).exp_signal;
+%    plot(e_s,'red')
+%    plot(sumSignal(s(ii).poly_posi,Parameters),'blue')
+%    plot(sumSignal(s(ii+1).poly_posi,Parameters),'green')
+% end
 
 %% Add noise
 % study the noise from experiment data and simulation data
@@ -136,18 +139,39 @@ plot(simu_signal_noise)
 hold on 
 plot(signal_exp(4,:),'red')
 
+% compare fitness function
 sum((simu_signal_noise-exp_data{4}).^2)
 sum((signal_simu(4,:)-exp_data{4}).^2)
 
-
+% save result for noise 'mean' and 'var'
+save(['noise'],'mean_sig','var_sig','p')
 
 %% GA again to estimate artificial data (different amplitude)
 % try decovolute artificial data for different amplitude value
 % -----create artificial data and add noise---------
+% parameter can be changed: 
+%       Nbr_poly: number of polymerase in artificial data,
+%                 to test the robust against different Nbr_poly
+%       amplitude_list: test different amplitude of noise
+%       also the parameters in GA     
+%
+% input:
+%   Noise is calculated by 'add Noise' part if you did not run "add Noise" you can load file from previous
+%   a = load('noise.mat');
+%   p = a.p;
+%   mean_sig = a.mean_sig;
+% output:
+%   artificial data stored in one struct <art_data_diff_amp>
+%   simulation data stored in a <simu_data_diff_amp_rep> a 1*80 struct
+%   each struct is a result of a simulation with 4 fields: polyNbr,amp,trans_posi,trans_posi_GDy 
+%   
+    
+
 Nbr_poly = 150;
 Pattern_poly_art = zeros(1,num_possible_poly);
 Pattern_poly_art(randi(num_possible_poly,1,Nbr_poly)) = 1; % randomly choose 25 poly position (test1)
-Pattern_poly_art_diff_amp = Pattern_poly_art; % to store artificial poly position for different amp
+Pattern_poly_art_diff_amp = Pattern_poly_art; % to store artificial poly
+position for different amp
 Trans_positions_art = find(Pattern_poly_art==1);
 sum_signal_art = sumSignal(Trans_positions_art,Parameters);
 % add noise
@@ -219,6 +243,18 @@ art_data_diff_amp.trans_posi_art=find(Pattern_poly_art_diff_amp==1);
 
 %% GA again to estimate artificial data
 % try decovolute artificial data for different polyNbr
+% input:
+%   Noise is calculated by 'add Noise' part if you did not run "add Noise" you can load file from previous
+%   a = load('noise.mat');
+%   p = a.p;
+%   mean_sig = a.mean_sig;
+% output:
+%   artificial data stored in <art_data_diff_polyNbr> with 1*10 struct,
+%   structs represent different poly_num
+%   
+%   simulation data stored in a <simu_data_diff_polyNbr_rep> a 1*80 struct
+%   each struct is a result of a simulation with 4 fields: polyNbr,amp,trans_posi,trans_posi_GDy 
+%   
 simu_data_diff_polyNbr_rep = struct;
 art_data_diff_polyNbr = struct;
 count_simu_polyNbr = 1;
@@ -278,25 +314,16 @@ end
 %% -----visualize GA result------ 
 % ==========comparison of different polyNbr ===========
 % blue GA data, red artifical experiment data
-figure(1)
-for ii = 1:10
-    subplot(4,3,ii)
-    plot(sumSignal(find(Pattern_poly_art_diff_polyNbr(ii,:)==1),Parameters),'red')
-    hold on 
-    plot(sumSignal(find(Pattern_poly_simu_diff_polyNbr(ii,:)==1),Parameters))
-    plot(art_signal_noise_diff_polyNbr(ii,:),'black')
-    legend('art data','simu data','art data noise')
-    title(['Nbr Poly=',num2str(ii*30),', amp=0.5'])
-end 
-
-
-Pattern_poly_art_no_noise = x_GA_art;
-Pattern_poly_list_diff_amp = Pattern_poly_list; % store data for different amp value, load data from file
-distance_pattern_poly = @(x) sum((x(1:length(Trans_positions_art))-Trans_positions_art).^2);
-figure(1)
-plot(find(Pattern_poly_list(1,:)==1),1,'Marker','o','color','red')
-hold on 
-plot(Trans_positions_art,1,'Marker','x','color','blue')
+% figure(1)
+% for ii = 1:10
+%     subplot(4,3,ii)
+%     plot(sumSignal(find(Pattern_poly_art_diff_polyNbr(ii,:)==1),Parameters),'red')
+%     hold on 
+%     plot(sumSignal(find(Pattern_poly_simu_diff_polyNbr(ii,:)==1),Parameters))
+%     plot(art_signal_noise_diff_polyNbr(ii,:),'black')
+%     legend('art data','simu data','art data noise')
+%     title(['Nbr Poly=',num2str(ii*30),', amp=0.5'])
+% end 
 
 % ----------Measure the difference between art and simu data---------
 % use Hausdorff distance
@@ -304,23 +331,24 @@ plot(Trans_positions_art,1,'Marker','x','color','blue')
 
 
 % ============comparison of different amplitude================
-figure(1)
-for ii = 1:10
-    subplot(5,2,ii)
-    plot(sumSignal(find(Pattern_poly_art_diff_amp==1),Parameters),'red')
-    hold on 
-    plot(sumSignal(find(Pattern_poly_simu_diff_amp(ii,:)==1),Parameters))
-    plot(art_signal_noise_diff_amp(ii,:),'black')
-    legend('art data','simu data','art data noise')
-    title(['Nbr Poly=150, amp=',num2str(ii*0.1)])
-end 
+% figure(1)
+% for ii = 1:10
+%     subplot(5,2,ii)
+%     plot(sumSignal(find(Pattern_poly_art_diff_amp==1),Parameters),'red')
+%     hold on 
+%     plot(sumSignal(find(Pattern_poly_simu_diff_amp(ii,:)==1),Parameters))
+%     plot(art_signal_noise_diff_amp(ii,:),'black')
+%     legend('art data','simu data','art data noise')
+%     title(['Nbr Poly=150, amp=',num2str(ii*0.1)])
+% end 
 
 % ----------Measure the difference between art and simu data---------
 % use Hausdorff distance
 % different amplitude 
 
 
-
+%% Calculate jaccard distance 
+% ---------------- different amplitude---------------
 % check how many position is exactly the same
 jd_dist = @(a,b) length(intersect(a,b))/length(union(a,b)); % compute Jaccard distance
 jaccard_dist_GA = [];
@@ -768,39 +796,5 @@ y = 1:0.1:10;
 [X,Y] = meshgrid(x,y);
 line(X,Y,'color',[0,0.7,0.9])
 legend('Artificial polymerase position')
-%============================================================
-
-% check how many position is exactly the same
-% check polyNbr 
-
-length(poly_position_diff_amp_GD{ii})
-same_position = intersect(poly_position_diff_amp_GD{ii},find(Pattern_poly_art_diff_amp==1));
-% check how many position is no more than permit_range
-tr_posi = find(Pattern_poly_art_diff_amp==1);
-tr_posi_range = [tr_posi,tr_posi+1,tr_posi+2,tr_posi-1,tr_posi-2]; % permit_range = 2;
-same_position_range2 = intersect(poly_position_diff_amp_GD{ii},tr_posi_range);
-
-
-% try parallel computing
-
-c = 1:10000000;
-a = ones(10000000,1);
-tic
-for i = 1:length(c)
-    a(i)= a(i)+ c(i);
-end
-toc
-
-matlabpool local 2;
-c = 1:10000000;
-a = ones(10000000,1);
-tic
-parfor i = 1:length(c)
-    a(i)= a(i)+ c(i);
-end
-toc
-
-matlabpool close
-
 
 

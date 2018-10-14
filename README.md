@@ -21,7 +21,7 @@ scrip yang
   * calculate jaccard distance 
 
 ## plot.m 
-* Use result from simulation_amp_polyNbr.m to visualize the results.
+* Use result from simulation_amp_polyNbr.m to visualize the results.(results are in data_simu_727.mat )
 
 ## ga_iters_test.m
 * test how many iterations is the best.
@@ -33,6 +33,9 @@ scrip yang
 
 ## /data_workSpace/
 * save results of different simulation.
+
+## data_simu_727.mat and noise.mat 
+* Data for all simulation. Load data_simu_727 to access structs with simulation data.
 
 # What's next
 * Genetic algorithm should be written into a function. 
